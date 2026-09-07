@@ -13,7 +13,7 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Tajawal', 'sans-serif'],
+            sans: ['Tajawal', 'system-ui', 'sans-serif'],
           },
         },
       },
@@ -24,14 +24,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Tajawal', sans-serif;
+      font-family: 'Tajawal', system-ui, sans-serif;
     }
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
     .no-scrollbar {
-      -ms-overflow-style: none;  /* IE and Edge */
-      scrollbar-width: none;  /* Firefox */
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
     .page {
       display: none;
@@ -51,8 +51,8 @@
     }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-200">
-  <header class="bg-slate-800 shadow-lg">
+<body class="bg-slate-900 text-slate-200 min-h-screen">
+  <header class="bg-slate-800 shadow-lg sticky top-0 z-50">
     <nav class="container mx-auto flex justify-between items-center p-3">
       <h1 class="text-2xl font-bold text-sky-200">رماية التوقيت</h1>
       <div class="flex gap-2">
@@ -76,13 +76,32 @@
         
         <div class="mb-4">
           <label for="shooterNameSelect" class="block text-base md:text-lg font-medium text-slate-300 mb-2">اسم الرامي</label>
-          <div class="flex gap-2">
-            <select id="shooterNameSelect" class="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
-              <!-- Options will be populated by JS -->
-            </select>
-            <button id="manage-shooters-button" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-lg transition-colors whitespace-nowrap">
-              إدارة
-            </button>
+          <div class="space-y-2">
+            <!-- حقل البحث السريع عن اسم الرامي -->
+            <div class="relative flex items-center">
+              <input
+                type="text"
+                id="shooter-search-input"
+                placeholder="🔍 ابحث عن اسم الرامي..."
+                autocomplete="off"
+                class="w-full bg-slate-700/90 border border-slate-600 rounded-md py-2 px-3 pl-8 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              />
+              <button
+                type="button"
+                id="clear-search-button"
+                class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs bg-slate-600/70 rounded-full w-5 h-5 flex items-center justify-center transition-colors hidden"
+                title="مسح البحث"
+              >✕</button>
+            </div>
+
+            <div class="flex gap-2">
+              <select id="shooterNameSelect" class="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                <!-- Options will be populated by JS -->
+              </select>
+              <button id="manage-shooters-button" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-lg transition-colors whitespace-nowrap">
+                إدارة
+              </button>
+            </div>
           </div>
         </div>
 
@@ -148,8 +167,8 @@
         </div>
 
         <div class="mb-4">
-            <button id="import-shooters-button" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">استيراد قائمة من ملف (.txt)</button>
-            <input type="file" id="shooters-file-input" accept=".txt" class="hidden">
+            <button id="import-shooters-button" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">استيراد قائمة من ملف (.xlsx, .xls)</button>
+            <input type="file" id="shooters-file-input" accept=".xlsx, .xls, .csv" class="hidden">
             <p class="text-xs text-slate-400 mt-1 text-center">يجب أن يحتوي الملف على اسم واحد في كل سطر.</p>
         </div>
 
@@ -173,11 +192,14 @@
   let shootersList = [];
   let currentEditId = null;
   let currentShooterName = '';
+  let shooterSearchQuery = '';
   let currentStages = Array(5).fill({ time: '', hit: true });
   let currentSortBy = 'date';
 
   // --- DOM ELEMENTS ---
   const shooterNameSelect = document.getElementById('shooterNameSelect');
+  const shooterSearchInput = document.getElementById('shooter-search-input');
+  const clearSearchButton = document.getElementById('clear-search-button');
   const stagesContainer = document.getElementById('stages-container');
   const totalScoreEl = document.getElementById('total-score');
   const saveButton = document.getElementById('save-button');
@@ -455,12 +477,44 @@
         } else {
             alert('لم يتم العثور على أسماء جديدة في الملف.');
         }
-        shootersFileInput.value = ''; // Reset file input
+        shootersFileInput.value = '';
     };
     reader.readAsText(file);
   }
 
   // --- EVENT HANDLERS ---
+  function handleShooterSearch(e) {
+    shooterSearchQuery = e.target.value;
+    if (clearSearchButton) {
+      clearSearchButton.classList.toggle('hidden', !shooterSearchQuery.trim());
+    }
+    populateShooterDropdown();
+
+    const query = shooterSearchQuery.trim().toLowerCase();
+    if (query) {
+      const matches = shootersList.filter(name => name.toLowerCase().includes(query));
+      if (matches.length === 1) {
+        currentShooterName = matches[0];
+        shooterNameSelect.value = currentShooterName;
+        updateSaveButtonState();
+      } else if (!matches.includes(currentShooterName)) {
+        if (!currentEditId) {
+          currentShooterName = '';
+          shooterNameSelect.value = '';
+          updateSaveButtonState();
+        }
+      }
+    }
+  }
+
+  function handleClearSearch() {
+    shooterSearchQuery = '';
+    if (shooterSearchInput) shooterSearchInput.value = '';
+    if (clearSearchButton) clearSearchButton.classList.add('hidden');
+    populateShooterDropdown();
+    shooterNameSelect.value = currentShooterName;
+  }
+
   function handleTimeInputChange(e) {
     const index = parseInt(e.target.dataset.index, 10);
     let value = e.target.value;
@@ -625,12 +679,29 @@
         options.sort((a, b) => a.localeCompare(b, 'ar'));
     }
 
-    options.forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        shooterNameSelect.appendChild(option);
-    });
+    const query = shooterSearchQuery.trim().toLowerCase();
+    if (query) {
+        options = options.filter(name => name.toLowerCase().includes(query));
+        if (currentShooterName && !options.includes(currentShooterName) && currentEditId) {
+            options.unshift(currentShooterName);
+        }
+    }
+
+    if (query && options.length === 0) {
+        const noMatch = document.createElement('option');
+        noMatch.value = '';
+        noMatch.disabled = true;
+        noMatch.textContent = `لا توجد نتائج تطابق "${shooterSearchQuery.trim()}"`;
+        shooterNameSelect.appendChild(noMatch);
+    } else {
+        options.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            shooterNameSelect.appendChild(option);
+        });
+    }
+
     shooterNameSelect.value = currentShooterName;
   }
 
@@ -666,6 +737,9 @@
   function resetEntryFormState() {
       currentEditId = null;
       currentShooterName = '';
+      shooterSearchQuery = '';
+      if (shooterSearchInput) shooterSearchInput.value = '';
+      if (clearSearchButton) clearSearchButton.classList.add('hidden');
       currentStages = Array(5).fill({ time: '', hit: true });
   }
 
@@ -681,6 +755,9 @@
       if (scoreToEdit) {
         currentEditId = scoreId;
         currentShooterName = scoreToEdit.name;
+        shooterSearchQuery = '';
+        if (shooterSearchInput) shooterSearchInput.value = '';
+        if (clearSearchButton) clearSearchButton.classList.add('hidden');
         currentStages = scoreToEdit.stages;
         entryTitle.textContent = 'تعديل النتيجة';
         saveButton.textContent = 'حفظ التعديلات';
@@ -695,8 +772,8 @@
     } else if (hash === '#results') {
       renderResults();
       document.getElementById('page-results').style.display = 'block';
-    } else { // #entry or default
-      if (currentEditId) resetEntryFormState(); // If we came from an edit page, reset
+    } else {
+      if (currentEditId) resetEntryFormState();
       entryTitle.textContent = 'تسجيل نتائج الرماية';
       saveButton.textContent = 'حفظ النتيجة';
       resetButton.textContent = 'مسح';
@@ -731,6 +808,25 @@
     // Attach permanent event listeners
     window.addEventListener('hashchange', navigate);
     shooterNameSelect.addEventListener('change', handleNameChange);
+    if (shooterSearchInput) {
+      shooterSearchInput.addEventListener('input', handleShooterSearch);
+      shooterSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const query = shooterSearchQuery.trim().toLowerCase();
+          const matches = shootersList.filter(name => name.toLowerCase().includes(query));
+          if (matches.length > 0) {
+            currentShooterName = matches[0];
+            shooterNameSelect.value = currentShooterName;
+            updateSaveButtonState();
+            shooterSearchInput.blur();
+          }
+        }
+      });
+    }
+    if (clearSearchButton) {
+      clearSearchButton.addEventListener('click', handleClearSearch);
+    }
     saveButton.addEventListener('click', handleSave);
     resetButton.addEventListener('click', handleReset);
     document.getElementById('export-csv-button').addEventListener('click', handleExportCSV);
